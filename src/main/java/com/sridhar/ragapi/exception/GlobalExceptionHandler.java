@@ -35,4 +35,17 @@ public class GlobalExceptionHandler {
                 "An unexpected error occurred. Please try again."
         );
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleEmptyPDF(IllegalArgumentException ex){
+        log.info("IllegalArgumentException: {}", ex.getMessage());
+        return new ErrorResponse(
+                "https://api.smartdocs.io/errors/invalid-pdf",
+                "Invalid PDF",
+                400,
+                ex.getMessage()
+        );
+
+    }
 }

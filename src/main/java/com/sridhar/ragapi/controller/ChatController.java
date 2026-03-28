@@ -1,15 +1,16 @@
 package com.sridhar.ragapi.controller;
 
+import com.sridhar.ragapi.entity.IngestedDocs;
 import com.sridhar.ragapi.service.ChatService;
+import com.sridhar.ragapi.service.IngestService;
 import com.sridhar.ragapi.util.AskRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
+import java.io.IOException;
 
 @Slf4j
 @RestController
@@ -17,10 +18,12 @@ import javax.validation.Valid;
 public class ChatController {
 
     private final ChatService chatService;
+    private final IngestService ingestService;
 
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, IngestService ingestService) {
         this.chatService = chatService;
+        this.ingestService = ingestService;
         System.out.println("ChatController bean ready");
 
     }
@@ -50,6 +53,28 @@ public class ChatController {
 
         var response = chatService.ask(ragTemplate,query);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/ingest")
+    public ResponseEntity<String> ingestDoc(@RequestParam("file") MultipartFile file) throws IOException {
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body("No file uploaded");
+        }
+        log.info("Received file: {}", file.getOriginalFilename());
+        int chunkCount = ingestService.ingest(file);
+        return ResponseEntity.ok("Ingested " + chunkCount + " chunks");
+
+
+    }
+
+    @GetMapping("/documents")
+    public void postIngestion()
+    {
+        for (IngestedDocs allChunk : ingestService.getAllChunks()) {
+            log.info("Completed document ingestion request for {}",allChunk );
+        }
+
+
     }
 
 }

@@ -35,12 +35,14 @@ public class ChatService {
 
         List<Document> relevantChunks = vectorStore.similaritySearch(SearchRequest.builder()
                 .query(query.question())
-                .topK(3).similarityThreshold(0.5)
+                .topK(3).similarityThreshold(0.4)
                 .build());
-        var context = relevantChunks.stream().map(doc -> doc.getText()).collect(Collectors.joining("\n -- \n"));
+        var context = relevantChunks.stream().map(Document::getText).collect(Collectors.joining("\n -- \n"));
         var question = query.question();
         var template = new PromptTemplate(ragTemplate);
         var prompt = template.create(Map.of("context", context, "question", question));
+        log.info("Context {}",context);
+        log.info("Question {}",question);
         return chatClient.prompt().user(prompt.toString()).call().content().strip();
     }
 }
