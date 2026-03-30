@@ -1,7 +1,9 @@
 package com.sridhar.ragapi.service;
 
+import com.fasterxml.classmate.AnnotationOverrides;
 import com.sridhar.ragapi.entity.IngestedDocs;
 import com.sridhar.ragapi.repository.IngestedDocumentRepository;
+import com.sridhar.ragapi.util.SlidingWindowSplitter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
@@ -24,7 +26,7 @@ public class IngestService {
     private final QdrantVectorStore vectorStore;
     private final IngestedDocumentRepository ingestedDocumentRepository;
 
-    public IngestService(QdrantVectorStore vectorStore, IngestedDocumentRepository ingestedDocumentRepository) {
+    public IngestService(QdrantVectorStore vectorStore, IngestedDocumentRepository ingestedDocumentRepository, SlidingWindowSplitter splitter) {
         this.vectorStore = vectorStore;
         this.ingestedDocumentRepository = ingestedDocumentRepository;
     }
@@ -43,13 +45,19 @@ public class IngestService {
                 throw new IllegalArgumentException("Failed to extract text from PDF. Please ensure the file is a valid PDF and contains extractable text.");
             }
             // Split into chunks — 512 tokens, 50 token overlap
-            TokenTextSplitter splitter = new TokenTextSplitter(512, 5, 50, 10000, true, List.of(',', '.'));
-            List<Document> chunks = splitter.apply(reader.get());
+            SlidingWindowSplitter splitter = new SlidingWindowSplitter();
+            List<Document> chunks = splitter.split(reader.get());
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException("Failed to split text into chunks. Please ensure the PDF contains sufficient text for splitting.");
             }
             vectorStore.add(chunks);
-            //ingestedDocumentRepository.save(new IngestedDocs(file.getOriginalFilename(), "gpt-3.5-turbo", chunks.size(), "ingested"));
+            ingestedDocumentRepository.save(
+                    IngestedDocs.of(
+                            file.getOriginalFilename(),
+                            chunks.size(),
+                            "text-embedding-3-small"
+                    )
+            );
             return chunks.size();
         } catch(IllegalArgumentException e){
             throw e;
