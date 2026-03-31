@@ -7,6 +7,6 @@ import java.time.Instant;
 import java.util.List;
 
 public interface IngestedDocumentRepository extends JpaRepository<IngestedDocs, String> {
-    List findByStatus(String status);
+    List<IngestedDocs> findByStatus(String status);
     long countByIngestedAtAfter(Instant since);
 }

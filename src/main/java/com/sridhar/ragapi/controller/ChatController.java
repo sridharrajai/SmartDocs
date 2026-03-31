@@ -69,10 +69,10 @@ public class ChatController {
     }
 
     @GetMapping("/documents")
-    public ResponseEntity<String> postIngestion()
+    public ResponseEntity<IngestedDocs> postIngestion()
     {
         List<IngestedDocs> allDocs = ingestService.getAllChunks();
-        return ResponseEntity.ok(allDocs.toString());
+            return ResponseEntity.ok(allDocs.isEmpty() ? null : allDocs.get(0));
 
     }
 
