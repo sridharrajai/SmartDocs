@@ -16,7 +16,7 @@ Two flows:
 
 **Ingestion** — PDF → chunk (512 tokens, 50 overlap) → embed via OpenAI text-embedding-3-small → store vectors in Qdrant → save metadata to PostgreSQL
 
-**Retrieval** — question → embed → cosine similarity search in Qdrant (top 3, threshold 0.6) → inject chunks into prompt template → LLM answers only from retrieved context
+**Retrieval** — question → embed → cosine similarity search in Qdrant (top 3, threshold 0.5) → inject chunks into prompt template → LLM answers only from retrieved context
 
 ---
 
@@ -134,6 +134,8 @@ curl http://localhost:8081/api/v1/documents
 
 **Why answer-only-from-context prompt?** The model is explicitly instructed not to use its training data. If the context is empty or irrelevant, it says so. Hallucination is structurally prevented, not just hoped against.
 
+**Why a custom SlidingWindowSplitter?** Spring AI's default `TokenTextSplitter` works but gives limited control over chunk boundaries. The custom splitter uses jtokkit with CL100K_BASE encoding — the same tokeniser OpenAI uses — ensuring chunk sizes are accurate in tokens, not characters. This means the 512-token limit is exact, not approximate.
+
 ---
 
 ## Error Handling
@@ -156,8 +158,8 @@ All errors return RFC-7807 Problem Details format:
 ```
 src/main/java/com/sridhar/ragapi/
 ├── controller/
+|   ├── IngestController.java
 │   └── ChatController.java
-│   
 ├── service/
 │   ├── IngestService.java
 │   └── ChatService.java
@@ -168,8 +170,11 @@ src/main/java/com/sridhar/ragapi/
 ├── exception/
 │   ├── GlobalExceptionHandler.java
 │   └── PromptInjectionException.java
-└── config/
-    └── CorsConfig.java
+├── config/
+|    └── CorsConfig.java
+└── util/
+    ├── AskRequest.java
+    └── SlidingWindowSplitter.java
 ```
 
 ---
