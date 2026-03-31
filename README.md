@@ -4,14 +4,14 @@ A production-style REST API that accepts PDF documents, chunks and embeds them i
 
 Built with Java 21 · Spring Boot 3 · Spring AI · OpenAI · Qdrant · PostgreSQL
 
-🎥 [Demo Video](YOUR_LOOM_LINK_HERE)
+
 
 ---
 
 ## Architecture
 
 
-![Architecture Diagram](<Project Architecture-1.png>)
+![Architecture Diagram](<Project%20Architecture.png>)
 Two flows:
 
 **Ingestion** — PDF → chunk (512 tokens, 50 overlap) → embed via OpenAI text-embedding-3-small → store vectors in Qdrant → save metadata to PostgreSQL
