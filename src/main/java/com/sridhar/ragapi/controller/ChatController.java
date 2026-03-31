@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.Valid;
 import java.io.IOException;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -68,12 +69,10 @@ public class ChatController {
     }
 
     @GetMapping("/documents")
-    public void postIngestion()
+    public ResponseEntity<String> postIngestion()
     {
-        for (IngestedDocs allChunk : ingestService.getAllChunks()) {
-            log.info("Completed document ingestion request for {}",allChunk );
-        }
-
+        List<IngestedDocs> allDocs = ingestService.getAllChunks();
+        return ResponseEntity.ok(allDocs.toString());
 
     }
 

@@ -1,6 +1,7 @@
 package com.sridhar.ragapi.util;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
 
-public record AskRequest (@NotNull String question){
+public record AskRequest (@NotBlank @Size(max=500) String question){
 }
