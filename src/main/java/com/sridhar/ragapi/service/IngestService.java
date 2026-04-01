@@ -1,13 +1,11 @@
 package com.sridhar.ragapi.service;
 
-import com.fasterxml.classmate.AnnotationOverrides;
-import com.sridhar.ragapi.entity.IngestedDocs;
+import com.sridhar.ragapi.entity.IngestedDocument;
 import com.sridhar.ragapi.repository.IngestedDocumentRepository;
 import com.sridhar.ragapi.util.SlidingWindowSplitter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.qdrant.QdrantVectorStore;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
@@ -52,7 +50,7 @@ public class IngestService {
             }
             vectorStore.add(chunks);
             ingestedDocumentRepository.save(
-                    IngestedDocs.of(
+                    IngestedDocument.of(
                             file.getOriginalFilename(),
                             chunks.size(),
                             "text-embedding-3-small"
@@ -71,8 +69,8 @@ public class IngestService {
 
     }
 
-    public List<IngestedDocs> getAllChunks(){
-       List<IngestedDocs> docs = ingestedDocumentRepository.findAll();
+    public List<IngestedDocument> getAllChunks(){
+       List<IngestedDocument> docs = ingestedDocumentRepository.findAll();
        log.info("Retrieved {} ingested documents from the database", docs);
        return docs;
     }

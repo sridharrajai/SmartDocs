@@ -1,14 +1,13 @@
 package com.sridhar.ragapi.entity;
 
 import jakarta.persistence.*;
-import jdk.jfr.Timestamp;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "ingested_docs")
-public class IngestedDocs {
+@Table(name = "ingested_documents")
+public class IngestedDocument {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String doc_id;
@@ -23,10 +22,10 @@ public class IngestedDocs {
     @Column(columnDefinition = "timestamp with time zone")
     private Instant ingestedAt;
 
-    public static IngestedDocs of(String filename,
+    public static IngestedDocument of(String filename,
                                       int chunkCount,
                                       String embeddingModel) {
-        IngestedDocs doc = new IngestedDocs();
+        IngestedDocument doc = new IngestedDocument();
         doc.filename = filename;
         doc.chunkSize = chunkCount;
         doc.modelName = embeddingModel;

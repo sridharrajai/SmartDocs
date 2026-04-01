@@ -1,6 +1,6 @@
 package com.sridhar.ragapi.controller;
 
-import com.sridhar.ragapi.entity.IngestedDocs;
+import com.sridhar.ragapi.entity.IngestedDocument;
 import com.sridhar.ragapi.service.IngestService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -34,9 +34,9 @@ public class IngestController {
     }
 
     @GetMapping("/documents")
-    public ResponseEntity<IngestedDocs> postIngestion()
+    public ResponseEntity<IngestedDocument> postIngestion()
     {
-        List<IngestedDocs> allDocs = ingestService.getAllChunks();
+        List<IngestedDocument> allDocs = ingestService.getAllChunks();
         return ResponseEntity.ok(allDocs.isEmpty() ? null : allDocs.get(0));
 
     }
