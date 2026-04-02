@@ -1,12 +1,10 @@
 package com.sridhar.ragapi.entity;
 
 import jakarta.persistence.*;
-import jdk.jfr.Timestamp;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
-import javax.annotation.Nullable;
 import java.time.Instant;
 
 @Setter
@@ -30,4 +28,15 @@ public class ChatMessage {
     private Instant createdAt;
 
 
+    public ChatMessage(String sessionId, String userId, MessageRole role, String content, int tokenCount) {
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.role = role;
+        this.content = content;
+        this.tokenCount = tokenCount;
+    }
+
+    public ChatMessage() {
+
+    }
 }

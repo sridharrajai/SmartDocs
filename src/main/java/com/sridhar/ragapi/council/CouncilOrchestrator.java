@@ -1,4 +1,4 @@
-package com.sridhar.ragapi.service;
+package com.sridhar.ragapi.council;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
