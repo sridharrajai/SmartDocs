@@ -6,7 +6,8 @@ import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.spring.AiService;
 import dev.langchain4j.service.spring.AiServiceWiringMode;
 
-@AiService(wiringMode = AiServiceWiringMode.EXPLICIT,chatModel = "langchain4jChatModel", chatMemoryProvider = "langchain4jChatMemoryProvider",tools = "knowledgeBaseTool")
+@AiService(wiringMode = AiServiceWiringMode.EXPLICIT,chatModel = "langchain4jChatModel",
+        chatMemoryProvider = "langchain4jChatMemoryProvider",tools = "knowledgeBaseTool")
 public interface DocumentAssistant {
     @SystemMessage("You are a helpful assistant that answers user queries based on the provided document chunks. " +
             "Use the retrieved document chunks to answer the user's question. " +

@@ -16,12 +16,15 @@ import org.springframework.web.client.ResourceAccessException;
 public class AgentService {
     private final ChatHistoryService chatHistoryService;
     private final DocumentAssistant documentAssistant;
+    private final TokenAwareMemoryService tokenAwareMemoryService;
 
 
 
-    public AgentService(ChatHistoryService chatHistoryService, DocumentAssistant documentAssistant) {
+
+    public AgentService(ChatHistoryService chatHistoryService, DocumentAssistant documentAssistant, TokenAwareMemoryService tokenAwareMemoryService) {
         this.chatHistoryService = chatHistoryService;
         this.documentAssistant = documentAssistant;
+        this.tokenAwareMemoryService = tokenAwareMemoryService;
     }
 
     @Retryable(retryFor = {OpenAiApiClientErrorException.class, ResourceAccessException.class},
@@ -29,6 +32,7 @@ public class AgentService {
             backoff = @Backoff(delay = 2000, multiplier = 2))
     public String agentChat(String sessionId,String userId,String userQuery){
         AgentContextHolder.clearContext();
+        tokenAwareMemoryService.trimmedMemory(sessionId,false);
         String response = documentAssistant.chat(sessionId,userQuery);
         chatHistoryService.saveExchange(sessionId,userId,userQuery,response);
         AgentContextHolder.clearContext();
@@ -37,7 +41,7 @@ public class AgentService {
 
     @Recover
     public String fallbackAgentChat(Exception e,String sessionId,String userId,String userQuery){
-        log.error("The AI Service is temporarily unavailable for session {}",sessionId,e.getMessage());
+        log.error("The AI Service is temporarily unavailable for session {}",e.getMessage());
         return "The AI service is temporarily unavailable. Please try again shortly.";
     }
 }
