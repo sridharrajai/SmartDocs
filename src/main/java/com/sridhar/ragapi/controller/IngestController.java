@@ -34,10 +34,7 @@ public class IngestController {
     }
 
     @GetMapping("/documents")
-    public ResponseEntity<IngestedDocument> postIngestion()
-    {
-        List<IngestedDocument> allDocs = ingestService.getAllChunks();
-        return ResponseEntity.ok(allDocs.isEmpty() ? null : allDocs.get(0));
-
+    public ResponseEntity<List<IngestedDocument>> getAllDocuments() {
+        return ResponseEntity.ok(ingestService.getAllChunks());
     }
 }
