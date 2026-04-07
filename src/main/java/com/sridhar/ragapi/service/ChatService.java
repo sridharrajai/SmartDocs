@@ -2,6 +2,7 @@ package com.sridhar.ragapi.service;
 import com.sridhar.ragapi.util.AskRequest;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.annotation.PostConstruct;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
@@ -26,11 +27,13 @@ public class ChatService {
     @PostConstruct
     public void init() { log.info("ChatService bean ready"); }
 
+    @Cacheable(value = "chat-responses", key = "#message")
     public String chat(String message) {
         log.info("ChatService received message  {}", message);
         return chatClient.prompt().user(message).call().content().strip();
     }
 
+    @Cacheable(value = "rag-responses", key = "#query.question()")
     public String ask(String ragTemplate,AskRequest query){
 
         List<Document> relevantChunks = vectorStore.similaritySearch(SearchRequest.builder()

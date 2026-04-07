@@ -1,5 +1,6 @@
 package com.sridhar.ragapi.agent;
 
+import com.sridhar.ragapi.repository.IngestedDocumentRepository;
 import com.sridhar.ragapi.util.AgentRequest;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,9 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,10 +20,11 @@ import java.util.stream.Collectors;
 public class KnowledgeBaseTool {
 
     private final VectorStore vectorStore;
+    private final IngestedDocumentRepository ingestedDocumentRepository;
 
-
-    public KnowledgeBaseTool(VectorStore vectorStore) {
+    public KnowledgeBaseTool(VectorStore vectorStore, IngestedDocumentRepository ingestedDocumentRepository) {
         this.vectorStore = vectorStore;
+        this.ingestedDocumentRepository = ingestedDocumentRepository;
     }
 
     @Tool("Search the knowledge base ONLY when the user asks about uploaded documents, " +
@@ -35,4 +40,21 @@ public class KnowledgeBaseTool {
         log.info("Tool Called ");
         return joinedDocs;
     }
+
+    @Tool("Get the current date and time")
+    public String getCurrentDate() {
+        log.info("Tool Time Called ");
+        return LocalDateTime.now()
+                .format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM));
+    }
+
+    @Tool("List all documents currently ingested into the knowledge base")
+    public String listAvailableDocuments() {
+        return ingestedDocumentRepository.findAll()
+                .stream()
+                .map(doc -> doc.getFilename() + " — " + doc.getChunkSize() +
+                        " chunks — ingested " + doc.getIngestedAt())
+                .collect(Collectors.joining("\n"));
+    }
+
 }

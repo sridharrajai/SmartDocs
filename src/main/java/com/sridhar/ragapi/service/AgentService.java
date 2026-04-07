@@ -5,7 +5,6 @@ import com.sridhar.ragapi.agent.DocumentAssistant;
 import com.sridhar.ragapi.council.CouncilOrchestrator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.api.common.OpenAiApiClientErrorException;
-import org.springframework.context.annotation.Fallback;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;

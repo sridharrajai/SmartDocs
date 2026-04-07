@@ -2,21 +2,25 @@
 
 A production-style REST API that accepts PDF documents, chunks and embeds them into a vector database, and answers questions grounded strictly in the uploaded content — eliminating hallucination by design.
 
-Built with Java 21 · Spring Boot 3 · Spring AI · OpenAI · Qdrant · PostgreSQL
+Built with Java 21 · Spring Boot 3 · LangChain4j · Spring AI · OpenAI · Qdrant · PostgreSQL · Redis
 
-
+> **Educational project.** Each layer is intentionally explicit so the full request lifecycle — from PDF upload to council-refined answer — is easy to follow and learn from.
 
 ---
 
 ## Architecture
 
-
 ![Architecture Diagram](<Project%20Architecture.png>)
-Two flows:
 
-**Ingestion** — PDF → chunk (512 tokens, 50 overlap) → embed via OpenAI text-embedding-3-small → store vectors in Qdrant → save metadata to PostgreSQL
+The request flows through seven distinct layers
 
-**Retrieval** — question → embed → cosine similarity search in Qdrant (top 3, threshold 0.5) → inject chunks into prompt template → LLM answers only from retrieved context
+## Two core flows
+
+**Ingestion**
+PDF → `PagePdfDocumentReader` → `SlidingWindowSplitter` (512 tokens, 50 overlap) → embed via `text-embedding-3-small` → store vectors in Qdrant → save metadata to PostgreSQL
+
+**Agent chat**
+Question → `AgentService` (loads token-trimmed history) → `DocumentAssistant` triggers `KnowledgeBaseTools` → similarity search in Qdrant (top 3, threshold 0.5) → context stored in `AgentContextHolder` → `CouncilOrchestrator` runs Critic → Refiner if needed → refined answer persisted to PostgreSQL
 
 ---
 
@@ -26,12 +30,15 @@ Two flows:
 |---|---|
 | Language | Java 21 |
 | Framework | Spring Boot 3.5 |
-| AI Framework | Spring AI 1.1.x |
+| Agent Framework | LangChain4j 1.12 |
+| AI / Embeddings | Spring AI 1.1 |
 | LLM | OpenAI gpt-4o-mini |
 | Embedding Model | text-embedding-3-small |
 | Vector Store | Qdrant |
 | Relational DB | PostgreSQL 16 |
-| Containerisation | Docker |
+| Session Cache | Redis |
+| Tokeniser | jtokkit (CL100K_BASE) |
+| Containerisation | Docker / docker-compose |
 
 ---
 
@@ -39,9 +46,13 @@ Two flows:
 
 | Method | Endpoint | Description |
 |---|---|---|
+| POST | `/api/v1/agent/chat` | Multi-turn agent chat with RAG + council refinement |
 | POST | `/api/v1/ingest` | Upload a PDF — chunks, embeds, stores |
-| POST | `/api/v1/ask` | Ask a question — grounded answer only |
+| POST | `/api/v1/ask` | Direct RAG Q&A (no agent, no council) |
+| POST | `/api/v1/chat` | Plain LLM chat (no RAG) |
 | GET | `/api/v1/documents` | List all ingested documents |
+| GET | `/api/v1/chat/history` | Retrieve chat history for a session |
+| GET | `/` | Health check |
 
 ---
 
@@ -50,7 +61,7 @@ Two flows:
 ### Prerequisites
 - Java 21
 - Docker
-- OpenAI API key (or Google Gemini API key — free)
+- OpenAI API key
 
 ### 1. Start infrastructure
 
@@ -58,7 +69,7 @@ Two flows:
 docker-compose up -d
 ```
 
-This starts PostgreSQL on port 5432 and Qdrant on port 6333.
+Starts PostgreSQL on `5432` and Qdrant on `6333` / `6334`. Add Redis (`redis:7`) to `docker-compose.yml` if not already present.
 
 ### 2. Set your API key
 
@@ -66,7 +77,7 @@ This starts PostgreSQL on port 5432 and Qdrant on port 6333.
 # Windows
 set OPENAI_API_KEY=your_key_here
 
-# Mac/Linux
+# Mac / Linux
 export OPENAI_API_KEY=your_key_here
 ```
 
@@ -89,7 +100,6 @@ curl -X POST http://localhost:8081/api/v1/ingest \
   -F "file=@/path/to/document.pdf"
 ```
 
-Response:
 ```json
 {
   "filename": "document.pdf",
@@ -98,58 +108,47 @@ Response:
 }
 ```
 
-### Ask a question
+### Agent chat (multi-turn, with council)
+
+```bash
+curl -X POST http://localhost:8081/api/v1/agent/chat \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: my-session" \
+  -H "X-User-Id: user-1" \
+  -d '{"query": "What are the key findings in this document?"}'
+```
+
+```json
+{
+  "answer": "According to the document, the key findings are...",
+  "councilUsed": true
+}
+```
+
+### Direct RAG ask
 
 ```bash
 curl -X POST http://localhost:8081/api/v1/ask \
   -H "Content-Type: application/json" \
-  -d '{"question": "What are the main topics covered in this document?"}'
+  -d '{"question": "What are the main topics covered?"}'
 ```
-
-Response:
-```json
-"Based on the document, the main topics covered are..."
-```
-
-If the answer is not in the document:
-```json
-"I don't have that information."
-```
-
-### List ingested documents
-
-```bash
-curl http://localhost:8081/api/v1/documents
-```
-
----
-
-## Key Design Decisions
-
-**Why Qdrant?** Self-hosted, fast, no per-query cost at scale. Runs in Docker with zero config.
-
-**Why 512-token chunks with 50-token overlap?** Overlap prevents sentences split across chunk boundaries from losing context. 512 tokens balances retrieval precision against context richness.
-
-**Why similarity threshold 0.5?** Filters low-relevance chunks before they reach the prompt. Prevents noise from degrading answer quality.
-
-**Why answer-only-from-context prompt?** The model is explicitly instructed not to use its training data. If the context is empty or irrelevant, it says so. Hallucination is structurally prevented, not just hoped against.
-
-**Why a custom SlidingWindowSplitter?** Spring AI's default `TokenTextSplitter` works but gives limited control over chunk boundaries. The custom splitter uses jtokkit with CL100K_BASE encoding — the same tokeniser OpenAI uses — ensuring chunk sizes are accurate in tokens, not characters. This means the 512-token limit is exact, not approximate.
 
 ---
 
 ## Error Handling
 
-All errors return RFC-7807 Problem Details format:
+All errors return RFC-7807 Problem Details:
 
 ```json
 {
   "type": "about:blank",
-  "title": "Internal Error",
-  "status": 500,
-  "detail": "An unexpected error occurred. Please try again."
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Prompt injection detected."
 }
 ```
+
+Prompt injection triggers a 400 immediately at the filter stage, before any LLM call is made.
 
 ---
 
@@ -157,24 +156,44 @@ All errors return RFC-7807 Problem Details format:
 
 ```
 src/main/java/com/sridhar/ragapi/
-├── controller/
-|   ├── IngestController.java
-│   └── ChatController.java
-├── service/
-│   ├── IngestService.java
-│   └── ChatService.java
-├── entity/
-│   └── IngestedDocument.java
-├── repository/
-│   └── IngestedDocumentRepository.java
-├── exception/
-│   ├── GlobalExceptionHandler.java
-│   └── PromptInjectionException.java
+├── agent/
+│   ├── DocumentAssistant.java       # LangChain4j @AiService interface
+│   ├── KnowledgeBaseTool.java       # @Tool — Qdrant similarity search
+│   └── AgentContextHolder.java      # ThreadLocal RAG context carrier
 ├── config/
-|    └── CorsConfig.java
+│   ├── LangChain4jConfig.java       # ChatModel + ChatMemoryProvider beans
+│   └── CorsConfig.java
+├── controller/
+│   ├── AgentController.java         # POST /api/v1/agent/chat
+│   ├── ChatController.java          # POST /api/v1/chat + /ask
+│   ├── IngestController.java        # POST /api/v1/ingest
+│   ├── HistoryController.java       # GET  /api/v1/chat/history
+│   └── HealthController.java
+├── council/
+│   └── CouncilOrchestrator.java     # Critic → Refiner pipeline
+├── entity/
+│   ├── ChatMessage.java
+│   ├── IngestedDocument.java
+│   └── MessageRole.java
+├── exception/
+│   ├── GlobalExceptionHandler.java  # RFC-7807 error responses
+│   ├── ErrorResponse.java
+│   └── PromptInjectionException.java
+├── repository/
+│   ├── ChatMessageRepository.java
+│   └── IngestedDocumentRepository.java
+├── service/
+│   ├── AgentService.java            # Orchestrates agent + council
+│   ├── ChatService.java             # Direct LLM / RAG calls
+│   ├── IngestService.java           # PDF → chunks → Qdrant
+│   ├── ChatHistoryService.java      # PostgreSQL persistence
+│   ├── SessionCacheService.java     # Redis session cache
+│   ├── SessionManager.java
+│   └── TokenAwareMemoryService.java # Token-budget history trimming
 └── util/
     ├── AskRequest.java
-    └── SlidingWindowSplitter.java
+    ├── AgentRequest.java
+    └── SlidingWindowSplitter.java   # jtokkit-accurate chunker
 ```
 
 ---
@@ -183,15 +202,13 @@ src/main/java/com/sridhar/ragapi/
 
 | Variable | Description | Required |
 |---|---|---|
-| `OPENAI_API_KEY` | OpenAI API key | Yes (or Gemini) |
-| `GEMINI_API_KEY` | Google Gemini API key | Yes (or OpenAI) |
+| `OPENAI_API_KEY` | OpenAI API key | Yes |
 
 ---
 
-## docker-compose.yml
+## Infrastructure (docker-compose)
 
 ```yaml
-version: '3.8'
 services:
   postgres:
     image: postgres:16
@@ -205,6 +222,10 @@ services:
     ports:
       - "6333:6333"
       - "6334:6334"
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
 ```
 
 Run with: `docker-compose up -d`

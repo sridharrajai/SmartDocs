@@ -5,7 +5,6 @@ import com.sridhar.ragapi.util.AgentRequest;
 import com.sridhar.ragapi.service.AgentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +29,7 @@ public class AgentController {
     public ResponseEntity<String> agentChat(@RequestHeader("x-session-id") String sessionId, @RequestHeader("x-user-id") String userId,@RequestBody AgentRequest request){
         String session = sessionManager.getOrCreateSession(userId, sessionId);
         log.info("Received chat request - sessionId: {}, userId: {}, question: {}", sessionId, userId, request.userQuery());
-        return ResponseEntity.ok(agentService.agentChat(sessionId,userId,request.userQuery()));
+        return ResponseEntity.ok(agentService.agentChat(session,userId,request.userQuery()));
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
