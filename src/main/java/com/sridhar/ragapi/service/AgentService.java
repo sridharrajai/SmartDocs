@@ -14,7 +14,6 @@ import org.springframework.web.client.ResourceAccessException;
 @Slf4j
 @Service
 public class AgentService {
-    private final ChatHistoryService chatHistoryService;
     private final DocumentAssistant documentAssistant;
     private final TokenAwareMemoryService tokenAwareMemoryService;
     private final CouncilOrchestrator council;
@@ -22,8 +21,7 @@ public class AgentService {
 
 
 
-    public AgentService(ChatHistoryService chatHistoryService, DocumentAssistant documentAssistant, TokenAwareMemoryService tokenAwareMemoryService, CouncilOrchestrator council) {
-        this.chatHistoryService = chatHistoryService;
+    public AgentService(DocumentAssistant documentAssistant, TokenAwareMemoryService tokenAwareMemoryService, CouncilOrchestrator council) {
         this.documentAssistant = documentAssistant;
         this.tokenAwareMemoryService = tokenAwareMemoryService;
         this.council = council;
@@ -39,8 +37,7 @@ public class AgentService {
             // Council activates only when the @Tool ran and captured RAG context
             if (context != null && !context.isBlank())
                 draftAnswer = council.refine(userQuery, context, draftAnswer);
-            chatHistoryService.saveExchange(sessionId, userId, userQuery,
-                    draftAnswer);
+            //chatHistoryService.saveExchange(sessionId, userId, userQuery,draftAnswer);
             return draftAnswer;
         }finally {
             AgentContextHolder.clearContext();

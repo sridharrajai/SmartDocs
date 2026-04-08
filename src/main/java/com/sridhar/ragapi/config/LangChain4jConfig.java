@@ -3,6 +3,7 @@ package com.sridhar.ragapi.config;
 import com.sridhar.ragapi.agent.KnowledgeBaseTool;
 import com.sridhar.ragapi.repository.ChatMessageRepository;
 import com.sridhar.ragapi.repository.IngestedDocumentRepository;
+import com.sridhar.ragapi.service.PostGresChatMemoryService;
 import com.sridhar.ragapi.service.TokenAwareMemoryService;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -28,8 +29,12 @@ public class LangChain4jConfig {
     }
 
     @Bean(name = "langchain4jChatMemoryProvider")
-    public ChatMemoryProvider chatMemoryProvider() {
-        return memoryId -> MessageWindowChatMemory.withMaxMessages(20);
+    public ChatMemoryProvider chatMemoryProvider(PostGresChatMemoryService postGresChatMemoryService) {
+        return memoryId -> MessageWindowChatMemory.builder()
+                .id(memoryId)
+                .maxMessages(20)
+                .chatMemoryStore(postGresChatMemoryService)
+                .build();
     }
 
     @Bean

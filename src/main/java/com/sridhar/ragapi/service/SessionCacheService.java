@@ -16,9 +16,13 @@ public class SessionCacheService {
 
     public void cacheSessionData(String userID, String sessionId) {
         redis.opsForValue().set("session:"+userID,sessionId, Duration.ofHours(1));
+        redis.opsForValue().set("userid:" + sessionId, userID, Duration.ofHours(1));
     }
 
     public Optional<String> getSessionData(String userID) {
         return Optional.ofNullable(redis.opsForValue().get("session:"+userID));
+    }
+    public Optional<String> getUserIdBySession(String sessionId) {
+        return Optional.ofNullable(redis.opsForValue().get("userid:" + sessionId));
     }
 }
