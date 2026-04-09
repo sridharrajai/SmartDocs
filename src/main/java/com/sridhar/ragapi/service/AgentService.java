@@ -15,16 +15,15 @@ import org.springframework.web.client.ResourceAccessException;
 @Service
 public class AgentService {
     private final DocumentAssistant documentAssistant;
-    private final TokenAwareMemoryService tokenAwareMemoryService;
     private final CouncilOrchestrator council;
+    private final SummaryService summaryService;
 
-
-
-
-    public AgentService(DocumentAssistant documentAssistant, TokenAwareMemoryService tokenAwareMemoryService, CouncilOrchestrator council) {
+    public AgentService(DocumentAssistant documentAssistant,
+                        CouncilOrchestrator council,
+                        SummaryService summaryService) {
         this.documentAssistant = documentAssistant;
-        this.tokenAwareMemoryService = tokenAwareMemoryService;
         this.council = council;
+        this.summaryService = summaryService;
     }
 
     @Retryable(retryFor = {OpenAiApiClientErrorException.class, ResourceAccessException.class},
@@ -39,8 +38,10 @@ public class AgentService {
                 draftAnswer = council.refine(userQuery, context, draftAnswer);
             //chatHistoryService.saveExchange(sessionId, userId, userQuery,draftAnswer);
             return draftAnswer;
-        }finally {
+        } finally {
+            PostGresChatMemoryService.clearRequestCache();
             AgentContextHolder.clearContext();
+            summaryService.compressIfNeeded(sessionId);
         }
     }
 

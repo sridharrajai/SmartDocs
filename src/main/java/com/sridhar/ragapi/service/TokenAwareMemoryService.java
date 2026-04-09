@@ -12,7 +12,6 @@ import java.util.List;
 @Service
 public class TokenAwareMemoryService {
     private final int MAX_TOKEN_LIMIT = 3000;
-    private final int COUNCIL_TOKEN_LIMIT = 1500;
     private final int CHARS_PER_TOKEN = 4;
     private final ChatMessageRepository chatMessageRepository;
 
@@ -20,8 +19,8 @@ public class TokenAwareMemoryService {
         this.chatMessageRepository = chatMessageRepository;
     }
 
-    public List<ChatMessage> trimmedMemory(String sessionId, boolean councilUsed){
-        int tokenBudget = councilUsed ? COUNCIL_TOKEN_LIMIT : MAX_TOKEN_LIMIT;
+    public List<ChatMessage> trimmedMemory(String sessionId){
+        int tokenBudget = MAX_TOKEN_LIMIT;
         List<ChatMessage> fullMessages = chatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         Deque<ChatMessage> trimmedMessages = new ArrayDeque<>();
         for(int i=fullMessages.size()-1; i>=0; i--){
