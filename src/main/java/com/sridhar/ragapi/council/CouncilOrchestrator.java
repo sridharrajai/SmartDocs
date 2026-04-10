@@ -3,6 +3,7 @@ package com.sridhar.ragapi.council;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -28,8 +29,11 @@ public class CouncilOrchestrator {
                 "{\"hallucination\": true/false, \"hallucination_detail\": \"...\"," +
                 "\"missing_info\": \"...\", \"clarity_issue\": \"...\"," +
                 "\"verdict\": \"ACCEPTABLE\" | \"NEEDS_IMPROVEMENT\"}";
-        String critiqueJson = chatClient.prompt().user(criticPrompt).call().content();
-        log.debug("Council critique JSON : {}", critiqueJson);
+        ChatResponse criticResponse = chatClient.prompt(criticPrompt).call().chatResponse();
+        String critiqueJson = criticResponse.getResult().getOutput().getText();
+        int usage = criticResponse.getMetadata().getUsage().getTotalTokens();
+        log.info("Council critique JSON : {}", critiqueJson);
+        log.info("Usage critic : {}", usage);
         // FAST-PATH: strip Markdown fences, parse verdict via Jackson -- never use String.contains()
         String cleaned =
                 critiqueJson.replaceAll("(?s)```json\\s*","").replaceAll("(?s)```\\s*","").trim();
@@ -50,6 +54,12 @@ public class CouncilOrchestrator {
                         "QUESTION:\n" + originalQuery + "\n\nCONTEXT:\n" + retrievedChunks +
                         "\n\nDRAFT:\n" + draftResponse +
                         "\n\nCRITIC FEEDBACK:\n" + critiqueJson + "\n\nWrite the improved answer now:";
-        return chatClient.prompt().user(refinerPrompt).call().content();
+        ChatResponse refinerResponse = chatClient.prompt(refinerPrompt).call().chatResponse();
+        String refinedAnswer  = refinerResponse.getResult().getOutput().getText();
+        int refinerCount = refinerResponse.getMetadata().getUsage().getTotalTokens();
+        log.info("Council refiner JSON : {}", refinedAnswer );
+        log.info("Usage refiner : {}", refinerCount);
+        return refinedAnswer ;
+        //return chatClient.prompt().user(refinerPrompt).call().content();
     }
 }
