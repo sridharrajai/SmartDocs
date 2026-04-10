@@ -17,13 +17,15 @@ public class AgentService {
     private final DocumentAssistant documentAssistant;
     private final CouncilOrchestrator council;
     private final SummaryService summaryService;
+    private final PostGresChatMemoryService postGresChatMemoryService;
 
     public AgentService(DocumentAssistant documentAssistant,
                         CouncilOrchestrator council,
-                        SummaryService summaryService) {
+                        SummaryService summaryService, PostGresChatMemoryService postGresChatMemoryService) {
         this.documentAssistant = documentAssistant;
         this.council = council;
         this.summaryService = summaryService;
+        this.postGresChatMemoryService = postGresChatMemoryService;
     }
 
     @Retryable(retryFor = {OpenAiApiClientErrorException.class, ResourceAccessException.class},
@@ -34,9 +36,10 @@ public class AgentService {
             String draftAnswer = documentAssistant.chat(sessionId, userQuery);
             String context = AgentContextHolder.getContext();
             // Council activates only when the @Tool ran and captured RAG context
-            if (context != null && !context.isBlank())
+            if (context != null && !context.isBlank()) {
                 draftAnswer = council.refine(userQuery, context, draftAnswer);
-            //chatHistoryService.saveExchange(sessionId, userId, userQuery,draftAnswer);
+                postGresChatMemoryService.markLatestAssistantVerified(sessionId);
+            }
             return draftAnswer;
         } finally {
             PostGresChatMemoryService.clearRequestCache();

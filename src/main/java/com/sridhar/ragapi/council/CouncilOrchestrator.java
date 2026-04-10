@@ -32,12 +32,10 @@ public class CouncilOrchestrator {
         ChatResponse criticResponse = chatClient.prompt(criticPrompt).call().chatResponse();
         String critiqueJson = criticResponse.getResult().getOutput().getText();
         int usage = criticResponse.getMetadata().getUsage().getTotalTokens();
-        log.info("Council critique JSON : {}", critiqueJson);
         log.info("Usage critic : {}", usage);
         // FAST-PATH: strip Markdown fences, parse verdict via Jackson -- never use String.contains()
         String cleaned =
                 critiqueJson.replaceAll("(?s)```json\\s*","").replaceAll("(?s)```\\s*","").trim();
-        log.info("Council critique Cleaned : {}", cleaned);
         int b = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');
         if (b >= 0 && e > b) cleaned = cleaned.substring(b, e + 1);
         String verdict = "NEEDS_IMPROVEMENT";
@@ -57,7 +55,6 @@ public class CouncilOrchestrator {
         ChatResponse refinerResponse = chatClient.prompt(refinerPrompt).call().chatResponse();
         String refinedAnswer  = refinerResponse.getResult().getOutput().getText();
         int refinerCount = refinerResponse.getMetadata().getUsage().getTotalTokens();
-        log.info("Council refiner JSON : {}", refinedAnswer );
         log.info("Usage refiner : {}", refinerCount);
         return refinedAnswer ;
         //return chatClient.prompt().user(refinerPrompt).call().content();

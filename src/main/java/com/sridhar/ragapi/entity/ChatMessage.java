@@ -27,6 +27,26 @@ public class ChatMessage {
     @CreationTimestamp
     private Instant createdAt;
 
+    @Column(columnDefinition = "boolean default false")
+    private boolean councilVerified = false;
+
+    @Column(columnDefinition = "boolean default false")
+    private boolean promotedToKnowledgeBase = false;
+
+
+    public ChatMessage(String sessionId, String userId, MessageRole role, String content, int tokenCount,boolean councilVerified, boolean promotedToKnowledgeBase) {
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.role = role;
+        this.content = content;
+        this.tokenCount = tokenCount;
+        this.councilVerified = councilVerified;
+        this.promotedToKnowledgeBase = promotedToKnowledgeBase;
+    }
+
+    public ChatMessage() {
+
+    }
 
     public ChatMessage(String sessionId, String userId, MessageRole role, String content, int tokenCount) {
         this.sessionId = sessionId;
@@ -34,9 +54,5 @@ public class ChatMessage {
         this.role = role;
         this.content = content;
         this.tokenCount = tokenCount;
-    }
-
-    public ChatMessage() {
-
     }
 }

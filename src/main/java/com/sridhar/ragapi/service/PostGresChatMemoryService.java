@@ -12,10 +12,7 @@ import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -67,7 +64,7 @@ public class PostGresChatMemoryService implements ChatMemoryStore {
         chatMessageRepository.deleteBySessionId(id);
         messages.stream()
                 .map(msg -> toEntity(id, msg))
-                .filter(entity -> entity != null)
+                .filter(Objects::nonNull)
                 .forEach(chatMessageRepository::save);
         log.info("Updated {} messages for session {}", messages.size(), memoryId);
     }
@@ -107,7 +104,7 @@ public class PostGresChatMemoryService implements ChatMemoryStore {
             role = MessageRole.ASSISTANT;
             intermediate = ((AiMessage) msg).text();
         }
-        String content = intermediate != null ? intermediate : null;
+        String content = intermediate;
         if (content == null) return null;
         int tokenCount = content.length() / 4;
         String userId = sessionCacheService
@@ -122,5 +119,10 @@ public class PostGresChatMemoryService implements ChatMemoryStore {
             case ASSISTANT -> AiMessage.from(entity.getContent());
             case SYSTEM -> SystemMessage.from(entity.getContent());
         };
+    }
+
+    @Transactional
+    public void markLatestAssistantVerified(String sessionId) {
+        chatMessageRepository.markLatestAssistantVerified(sessionId);
     }
 }

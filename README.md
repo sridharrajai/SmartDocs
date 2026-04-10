@@ -151,7 +151,20 @@ All errors return RFC-7807 Problem Details:
 Prompt injection triggers a 400 immediately at the filter stage, before any LLM call is made.
 
 ---
+## Known Limitations
 
+### Embedding Cache
+- `EmbeddingCacheService` is not yet wired into `IngestService` or `AgentService` — embedding calls still bypass the cache. Full wiring planned before Day 28.
+
+### Knowledge Loop
+- **Duplicate promotions** — repeated identical questions create multiple `councilVerified=true` rows, each promoted to Qdrant independently. Content-hash deduplication is a planned improvement.
+- **No vector provenance** — promoted Qdrant points carry no `sourceMessageId`, `sessionId`, or timestamp metadata. Traceability back to the originating chat message is not yet implemented.
+- **No promotion failure handling** — if `vectorStore.add()` throws, `saveAll()` is skipped silently. No retry or dead-letter mechanism exists for failed promotions.
+
+### Council Verification
+- Fast-path responses (Critic returns ACCEPTABLE, Refiner skipped) are still marked `councilVerified=true`. Verification granularity does not distinguish between Critic-only and full Critic+Refiner passes.
+
+---
 ## Project Structure
 
 ```
