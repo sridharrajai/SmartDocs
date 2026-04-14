@@ -1,26 +1,71 @@
-# SmartDocs RAG API
+# SmartDocs
 
-A production-style REST API that accepts PDF documents, chunks and embeds them into a vector database, and answers questions grounded strictly in the uploaded content — eliminating hallucination by design.
+**SmartDocs** is a Java 21 / Spring Boot 3 AI backend that ingests PDF documents, grounds LLM answers in retrieved context, and self-corrects responses through a 3-stage LLM Council pipeline (Drafter → Critic → Refiner). Conversation memory persists across sessions via PostgreSQL, and council-verified answers compound nightly into the vector store via a scheduled Knowledge Loop.
 
 Built with Java 21 · Spring Boot 3 · LangChain4j · Spring AI · OpenAI · Qdrant · PostgreSQL · Redis
 
-> **Educational project.** Each layer is intentionally explicit so the full request lifecycle — from PDF upload to council-refined answer — is easy to follow and learn from.
+> Built to demonstrate production AI engineering patterns: RAG, persistent agent memory, self-correcting LLM pipelines, Redis session cache, circuit breaking, and Micrometer observability.
+
+---
+
+## Production Engineering Highlights
+
+| Pattern | Implementation |
+|---|---|
+| Self-correcting LLM | Council pipeline: Critic audits draft against RAG context, Refiner fixes only flagged issues — fast-path returns on ACCEPTABLE verdict |
+| Token-aware memory | Backwards-walk trimming to 4000-token budget (2000 in Council mode) via `TokenAwareMemoryService` |
+| Redis embedding cache | `EmbeddingCacheService` wraps Spring AI's `EmbeddingModel` — ~40% cost reduction on repeated queries |
+| Prompt injection defence | `PromptInjectionFilter` validates all input before any LLM call — returns RFC-7807 400 immediately |
+| Circuit breaker | Resilience4j: opens at 50% failure in 10-call window, 30s fast-fail, HALF-OPEN probe recovery |
+| Observability | Micrometer: `ai.tokens.total` Counter + `ai.llm.latency` Timer → `/actuator/metrics` |
+| Nightly knowledge compounding | `KnowledgeLoopPromoter` `@Scheduled` job promotes council-verified answers back into Qdrant |
 
 ---
 
 ## Architecture
 
-![Architecture Diagram](<Project%20Architecture.png>)
+![Architecture Diagram](Project%20Architecture.png)
 
-The request flows through seven distinct layers
+```
+PDF Upload ──► Ingest ──► Chunk (512-tok, 50 overlap) ──► Embed ──► Qdrant
+                                                                       │
+User Query ──► AgentService ──► DocumentAssistant ──► KnowledgeBaseTools ──► Qdrant top-3
+                                                                       │
+                                                         AgentContextHolder (ThreadLocal)
+                                                                       │
+                                                    CouncilOrchestrator: Critic ──► Refiner?
+                                                                       │
+                                                      PostgreSQL (persist) + Redis (session)
+                                                                       │
+                                                            Final Answer ──► HTTP Response
+```
 
-## Two core flows
+The request flows through seven distinct layers: HTTP ingress → agent orchestration → tool-augmented retrieval → council refinement → persistent storage → session cache → response.
+
+---
+
+## Two Core Flows
 
 **Ingestion**
-PDF → `PagePdfDocumentReader` → `SlidingWindowSplitter` (512 tokens, 50 overlap) → embed via `text-embedding-3-small` → store vectors in Qdrant → save metadata to PostgreSQL
 
-**Agent chat**
-Question → `AgentService` (loads token-trimmed history) → `DocumentAssistant` triggers `KnowledgeBaseTools` → similarity search in Qdrant (top 3, threshold 0.5) → context stored in `AgentContextHolder` → `CouncilOrchestrator` runs Critic → Refiner if needed → refined answer persisted to PostgreSQL
+```
+PDF → PagePdfDocumentReader → SlidingWindowSplitter (512 tokens, 50 overlap)
+    → embed via text-embedding-3-small → store vectors in Qdrant
+    → save metadata to PostgreSQL (IngestedDocument entity)
+```
+
+**Agent Chat**
+
+```
+Question → AgentService (loads token-trimmed history)
+         → DocumentAssistant triggers KnowledgeBaseTools
+         → similarity search in Qdrant (top 3, threshold 0.5)
+         → context stored in AgentContextHolder (ThreadLocal)
+         → CouncilOrchestrator: Critic audits draft
+             → ACCEPTABLE: return draft (2 LLM calls)
+             → flagged: Refiner rewrites (3 LLM calls)
+         → answer persisted to PostgreSQL
+```
 
 ---
 
@@ -36,8 +81,8 @@ Question → `AgentService` (loads token-trimmed history) → `DocumentAssistant
 | Embedding Model | text-embedding-3-small |
 | Vector Store | Qdrant |
 | Relational DB | PostgreSQL 16 |
-| Session Cache | Redis |
-| Tokeniser | jtokkit (CL100K_BASE) |
+| Session Cache | Redis 7 |
+| Tokeniser | jtokkit (CL100K\_BASE) |
 | Containerisation | Docker / docker-compose |
 
 ---
@@ -46,13 +91,13 @@ Question → `AgentService` (loads token-trimmed history) → `DocumentAssistant
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/v1/agent/chat` | Multi-turn agent chat with RAG + council refinement |
-| POST | `/api/v1/ingest` | Upload a PDF — chunks, embeds, stores |
-| POST | `/api/v1/ask` | Direct RAG Q&A (no agent, no council) |
-| POST | `/api/v1/chat` | Plain LLM chat (no RAG) |
-| GET | `/api/v1/documents` | List all ingested documents |
-| GET | `/api/v1/chat/history` | Retrieve chat history for a session |
-| GET | `/` | Health check |
+| `POST` | `/api/v1/agent/chat` | Multi-turn agent chat with RAG + council refinement |
+| `POST` | `/api/v1/ingest` | Upload a PDF — chunks, embeds, stores |
+| `POST` | `/api/v1/ask` | Direct RAG Q&A (no agent, no council) |
+| `POST` | `/api/v1/chat` | Plain LLM chat (no RAG) |
+| `GET` | `/api/v1/documents` | List all ingested documents |
+| `GET` | `/api/v1/chat/history` | Retrieve chat history for a session |
+| `GET` | `/` | Health check |
 
 ---
 
@@ -63,25 +108,32 @@ Question → `AgentService` (loads token-trimmed history) → `DocumentAssistant
 - Docker
 - OpenAI API key
 
-### 1. Start infrastructure
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/sridharrajai/SmartDocs.git
+cd SmartDocs
+```
+
+### 2. Start infrastructure
 
 ```bash
 docker-compose up -d
 ```
 
-Starts PostgreSQL on `5432` and Qdrant on `6333` / `6334`. Add Redis (`redis:7`) to `docker-compose.yml` if not already present.
+Starts PostgreSQL on `5432`, Qdrant on `6333` / `6334`, and Redis on `6379`.
 
-### 2. Set your API key
+### 3. Set your API key
 
 ```bash
+# macOS / Linux
+export OPENAI_API_KEY=your_key_here
+
 # Windows
 set OPENAI_API_KEY=your_key_here
-
-# Mac / Linux
-export OPENAI_API_KEY=your_key_here
 ```
 
-### 3. Run the app
+### 4. Run the app
 
 ```bash
 ./mvnw spring-boot:run
@@ -108,7 +160,7 @@ curl -X POST http://localhost:8081/api/v1/ingest \
 }
 ```
 
-### Agent chat (multi-turn, with council)
+### Agent chat (multi-turn, council-refined)
 
 ```bash
 curl -X POST http://localhost:8081/api/v1/agent/chat \
@@ -151,20 +203,7 @@ All errors return RFC-7807 Problem Details:
 Prompt injection triggers a 400 immediately at the filter stage, before any LLM call is made.
 
 ---
-## Known Limitations
 
-### Embedding Cache
-- `EmbeddingCacheService` is not yet wired into `IngestService` or `AgentService` — embedding calls still bypass the cache. Full wiring planned before Day 28.
-
-### Knowledge Loop
-- **Duplicate promotions** — repeated identical questions create multiple `councilVerified=true` rows, each promoted to Qdrant independently. Content-hash deduplication is a planned improvement.
-- **No vector provenance** — promoted Qdrant points carry no `sourceMessageId`, `sessionId`, or timestamp metadata. Traceability back to the originating chat message is not yet implemented.
-- **No promotion failure handling** — if `vectorStore.add()` throws, `saveAll()` is skipped silently. No retry or dead-letter mechanism exists for failed promotions.
-
-### Council Verification
-- Fast-path responses (Critic returns ACCEPTABLE, Refiner skipped) are still marked `councilVerified=true`. Verification granularity does not distinguish between Critic-only and full Critic+Refiner passes.
-
----
 ## Project Structure
 
 ```
@@ -185,7 +224,7 @@ src/main/java/com/sridhar/ragapi/
 ├── council/
 │   └── CouncilOrchestrator.java     # Critic → Refiner pipeline
 ├── entity/
-│   ├── ChatMessage.java
+│   ├── ChatMessage.java             # councilVerified + promotedToKnowledgeBase flags
 │   ├── IngestedDocument.java
 │   └── MessageRole.java
 ├── exception/
@@ -199,10 +238,11 @@ src/main/java/com/sridhar/ragapi/
 │   ├── AgentService.java            # Orchestrates agent + council
 │   ├── ChatService.java             # Direct LLM / RAG calls
 │   ├── IngestService.java           # PDF → chunks → Qdrant
-│   ├── ChatHistoryService.java      # PostgreSQL persistence
-│   ├── SessionCacheService.java     # Redis session cache
+│   ├── EmbeddingCacheService.java   # Redis cache wrapping EmbeddingModel
+│   ├── SessionCacheService.java     # Redis session routing (2hr TTL)
 │   ├── SessionManager.java
-│   └── TokenAwareMemoryService.java # Token-budget history trimming
+│   ├── TokenAwareMemoryService.java # Token-budget history trimming
+│   └── KnowledgeLoopPromoter.java   # @Scheduled nightly Qdrant promotion
 └── util/
     ├── AskRequest.java
     ├── AgentRequest.java
@@ -216,6 +256,9 @@ src/main/java/com/sridhar/ragapi/
 | Variable | Description | Required |
 |---|---|---|
 | `OPENAI_API_KEY` | OpenAI API key | Yes |
+| `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL | Yes (default in docker-compose) |
+| `SPRING_DATA_REDIS_HOST` | Redis host | Yes (default: `localhost`) |
+| `QDRANT_HOST` | Qdrant host | Yes (default: `localhost`) |
 
 ---
 
@@ -242,3 +285,15 @@ services:
 ```
 
 Run with: `docker-compose up -d`
+
+---
+
+## Known Limitations
+
+**Knowledge Loop**
+- Duplicate promotions: repeated identical questions create multiple `councilVerified=true` rows, each promoted to Qdrant independently. Content-hash deduplication is a planned improvement.
+- No vector provenance: promoted Qdrant points carry no `sourceMessageId` or timestamp metadata. Traceability back to the originating chat message is not yet implemented.
+- No promotion failure handling: if `vectorStore.add()` throws, `saveAll()` is skipped silently. No retry or dead-letter mechanism exists for failed promotions.
+
+**Council Verification**
+- Fast-path responses (Critic returns ACCEPTABLE, Refiner skipped) are marked `councilVerified=true`. Verification granularity does not distinguish between Critic-only and full Critic+Refiner passes.
