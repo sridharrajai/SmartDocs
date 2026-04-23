@@ -25,7 +25,10 @@ public class ChatService {
         this.vectorStore= vectorStore;
     }
     @PostConstruct
-    public void init() { log.info("ChatService bean ready"); }
+    public void init() {
+        log.info("ChatService bean ready");
+        log.info("Running on virtual thread: {}", Thread.currentThread().isVirtual());
+    }
 
     @Cacheable(value = "chat-responses", key = "#message")
     public String chat(String message) {

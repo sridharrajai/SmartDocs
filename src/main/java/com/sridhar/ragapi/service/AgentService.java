@@ -4,7 +4,6 @@ import com.sridhar.ragapi.agent.AgentContextHolder;
 import com.sridhar.ragapi.agent.DocumentAssistant;
 import com.sridhar.ragapi.council.CouncilOrchestrator;
 import com.sridhar.ragapi.exception.PromptInjectionException;
-import com.sridhar.ragapi.util.PromptInjectionFilter;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
